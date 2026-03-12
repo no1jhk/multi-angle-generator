@@ -201,7 +201,7 @@ export default function App(){
         </div></div>
       )}
 
-      <div style={S.bar}><div style={S.wrap}>
+      <div style={{height:64}}/><div style={S.bar}><div style={S.wrap}>
         {barMode==="video"?(
           <div style={S.barIn}>
             <span style={{fontSize:13,color:T.text.muted}}>{Object.values(videoLoading).some(Boolean)?`영상 생성 중... (${Object.values(videoLoading).filter(Boolean).length}개 진행)`:"이미지를 클릭하고 Veo3.1 영상을 생성하세요! 모션 프롬프트를 입력하고 '전체 영상 생성' 버튼을 누르세요!"}</span>
@@ -218,7 +218,7 @@ export default function App(){
               </div>
               <span style={{fontSize:13,color:T.text.ghost}}>모델을 선택하고 생성하기 버튼을 누르세요! (무료 사용자도 최신 모델 가능! 일일 최대 20장 제한)</span>
             </div>
-            <div style={S.barRight}><span style={S.costTxt}>{active.length}장 × ${curM.cost} = <strong>${(active.length*curM.cost).toFixed(3)}</strong></span>{gErr&&<span style={{fontSize:13,color:T.error,fontWeight:500}}>{gErr}</span>}<button onClick={doGen} disabled={gen} style={{...S.genBtn,...(gen?{opacity:0.55,cursor:"not-allowed"}:{})}}>{gen?<><span style={S.spin}/>생성 중...</>:<>생성하기 · {active.length}</>}</button></div>
+            <div style={S.barRight}><span style={S.costTxt}>{active.length}장 × ${curM.cost} = <strong>${(active.length*curM.cost).toFixed(3)}</strong></span><button onClick={doGen} disabled={gen} style={{...S.genBtn,...(gen?{opacity:0.55,cursor:"not-allowed"}:{})}}>{gen?<><span style={S.spin}/>생성 중...</>:<>생성하기 · {active.length}</>}</button></div>
           </div>
         )}
       </div></div>
