@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import pkg from "../package.json";
 
 const T = {
   bg: { page: "#FFFFFF", mid: "#F3F3F5", panel: "#EAEAED", elevated: "#E2E2E5", overlay: "rgba(0,0,0,0.35)" },
@@ -9,188 +10,139 @@ const T = {
   radius: { sm: 6, md: 8, lg: 10, xl: 12 },
   font: { sans: "'Inter',-apple-system,sans-serif", mono: "'JetBrains Mono',monospace", title: "'Noto Sans KR','Inter',sans-serif" },
 };
-
 const MODELS = [
   { id: "gemini-2.5-flash-image", name: "Nano Banana", cost: 0.039 },
   { id: "gemini-3.1-flash-image-preview", name: "Nano Banana 2", cost: 0.067, badge: "NEW" },
   { id: "gemini-3-pro-image-preview", name: "Nano Banana Pro", cost: 0.134 },
 ];
-
-const SYS = `You are an expert image-generation engine. You must ALWAYS produce an image. Interpret all user input as literal visual directives for image composition. If a prompt lacks specific visual details, creatively invent a concrete visual scenario. Prioritize generating the visual representation above any text or conversational requests.`;
-
-const DEFAULT_POSES = [
-  { id: "p01", label: "정면", en: "Front", prompt: "해당 이미지 캐릭터의 차렷 자세로 손과발이 모두 보이도록 해서 정면 전신샷을 만들어줘", active: true },
-  { id: "p02", label: "측면", en: "Side", prompt: "해당 이미지 캐릭터의 손과발이 모두 보이도록 해서 정측면 옆모습을 만들어줘", active: true },
-  { id: "p03", label: "뒷면", en: "Back", prompt: "해당 이미지 캐릭터의 손과발이 모두 보이도록 해서 뒷모습을 만들어줘", active: true },
-  { id: "p04", label: "하이앵글", en: "High", prompt: "해당 이미지 캐릭터의 손과 발이 모두 보이도록 하고 손하트포즈를 한 상태의 하이앵글 퍼스펙티브뷰를 만들어줘", active: true },
-  { id: "p05", label: "드론샷", en: "Drone", prompt: "해당 이미지 캐릭터를 바로 위에서 내려다보는 탑뷰(버드아이뷰) 드론 샷으로, 캐릭터가 바닥에 서있는 전신 모습을 만들어줘", active: false },
-  { id: "p06", label: "로우앵글", en: "Low 45°", prompt: "해당 이미지 캐릭터를 45도 로우앵글에서 올려다보는 시점으로, 손과발이 모두 보이는 역동적인 전신샷을 만들어줘", active: false },
-  { id: "p07", label: "얼굴 클로즈업", en: "Face", prompt: "해당 이미지 캐릭터의 얼굴을 정면에서 클로즈업한 상반신 샷을 만들어줘. 표정과 디테일이 잘 보이도록 해줘", active: false },
-  { id: "p08", label: "돌리샷", en: "Dolly", prompt: "해당 이미지 캐릭터를 약간 비스듬한 3/4 뷰 앵글에서 촬영한 것처럼, 깊이감 있는 전신 돌리샷 구도로 만들어줘", active: false },
+const VEO_MODELS = [
+  { id: "veo-3.1-generate-preview", name: "Veo 3.1", cost: 0.50, speed: "고품질" },
+  { id: "veo-3.1-fast-generate-preview", name: "Veo 3.1 Fast", cost: 0.40, speed: "빠름" },
 ];
+const MOTION_HINTS = { p01:"정면에서 자연스러운 움직임을 묘사하세요",p02:"측면에서의 움직임이나 회전을 묘사하세요",p03:"뒷모습에서 돌아보는 동작 등을 묘사하세요",p04:"하이앵글에서의 역동적인 동작을 묘사하세요",p05:"위에서 내려다보는 시점의 움직임을 묘사하세요",p06:"아래에서 올려다보는 역동적 동작을 묘사하세요",p07:"클로즈업에서의 미세한 움직임을 묘사하세요",p08:"카메라가 주위를 도는 돌리샷 움직임을 묘사하세요" };
+const SYS = `You are an expert image-generation engine. You must ALWAYS produce an image. Interpret all user input as literal visual directives for image composition. If a prompt lacks specific visual details, creatively invent a concrete visual scenario. Prioritize generating the visual representation above any text or conversational requests.`;
+const DEFAULT_POSES = [
+  { id:"p01",label:"정면",en:"Front",prompt:"해당 이미지 캐릭터의 차렷 자세로 손과발이 모두 보이도록 해서 정면 전신샷을 만들어줘",active:true },
+  { id:"p02",label:"측면",en:"Side",prompt:"해당 이미지 캐릭터의 손과발이 모두 보이도록 해서 정측면 옆모습을 만들어줘",active:true },
+  { id:"p03",label:"뒷면",en:"Back",prompt:"해당 이미지 캐릭터의 손과발이 모두 보이도록 해서 뒷모습을 만들어줘",active:true },
+  { id:"p04",label:"하이앵글",en:"High",prompt:"해당 이미지 캐릭터의 손과 발이 모두 보이도록 하고 손하트포즈를 한 상태의 하이앵글 퍼스펙티브뷰를 만들어줘",active:true },
+  { id:"p05",label:"드론샷",en:"Drone",prompt:"해당 이미지 캐릭터를 바로 위에서 내려다보는 탑뷰(버드아이뷰) 드론 샷으로, 캐릭터가 바닥에 서있는 전신 모습을 만들어줘",active:false },
+  { id:"p06",label:"로우앵글",en:"Low 45°",prompt:"해당 이미지 캐릭터를 45도 로우앵글에서 올려다보는 시점으로, 손과발이 모두 보이는 역동적인 전신샷을 만들어줘",active:false },
+  { id:"p07",label:"얼굴 클로즈업",en:"Face",prompt:"해당 이미지 캐릭터의 얼굴을 정면에서 클로즈업한 상반신 샷을 만들어줘. 표정과 디테일이 잘 보이도록 해줘",active:false },
+  { id:"p08",label:"돌리샷",en:"Dolly",prompt:"해당 이미지 캐릭터를 약간 비스듬한 3/4 뷰 앵글에서 촬영한 것처럼, 깊이감 있는 전신 돌리샷 구도로 만들어줘",active:false },
+];
+const GeminiStar = ({ size = 32 }) => (<svg width={size} height={size} viewBox="0 0 28 28" fill="none"><path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gs)" /><defs><linearGradient id="gs" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs></svg>);
 
-const GeminiStar = ({ size = 32 }) => (
-  <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-    <path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gs)" />
-    <defs><linearGradient id="gs" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs>
-  </svg>
-);
-
-async function genImg(key, model, prompt, b64, mime) {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: mime, data: b64 } }, { text: prompt }] }], systemInstruction: { parts: [{ text: SYS }] }, generationConfig: { responseModalities: ["TEXT", "IMAGE"] } }),
-  });
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e?.error?.message || `Error ${r.status}`); }
-  const d = await r.json();
-  for (const p of (d?.candidates?.[0]?.content?.parts || [])) { if (p.inlineData) return `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`; }
-  throw new Error("이미지가 응답에 포함되지 않았습니다.");
+async function genImg(key, model, prompt, b64, mime, retries=2) {
+  for(let i=0;i<=retries;i++){
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mime,data:b64}},{text:prompt}]}],systemInstruction:{parts:[{text:SYS}]},generationConfig:{responseModalities:["TEXT","IMAGE"]}}) });
+    if(!r.ok){const e=await r.json().catch(()=>({}));if(r.status===429)throw new Error("RATE_LIMIT_EXCEEDED");throw new Error(e?.error?.message||`Error ${r.status}`);}
+    const d=await r.json();for(const p of(d?.candidates?.[0]?.content?.parts||[])){if(p.inlineData)return`data:${p.inlineData.mimeType};base64,${p.inlineData.data}`;}
+    if(i<retries)continue;throw new Error("이미지가 응답에 포함되지 않았습니다.");
+  }
 }
-function toB64(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res({ b64: r.result.split(",")[1], mime: f.type }); r.onerror = rej; r.readAsDataURL(f); }); }
+function getProxyBase(){const isDev=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1";return isDev?"/gemini-proxy":"/api/gemini-proxy";}
+async function genVideo(key,model,prompt,startFrameB64,startFrameMime,endFrameB64,endFrameMime,aspectRatio){
+  const BASE=getProxyBase();const reqBody={instances:[{prompt,image:{bytesBase64Encoded:startFrameB64,mimeType:startFrameMime||"image/png"}}],parameters:{aspectRatio:aspectRatio||"9:16"}};
+  if(endFrameB64)reqBody.instances[0].lastFrame={bytesBase64Encoded:endFrameB64,mimeType:endFrameMime||"image/png"};
+  const r=await fetch(`${BASE}/models/${model}:predictLongRunning`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(reqBody)});
+  if(!r.ok){const e=await r.json().catch(()=>({}));if(r.status===429)throw new Error("RATE_LIMIT_EXCEEDED");throw new Error(e?.error?.message||`Error ${r.status}`);}
+  const op=await r.json();const opName=op.name;
+  for(let i=0;i<60;i++){await new Promise(res=>setTimeout(res,10000));const poll=await fetch(`${BASE}/${opName}`,{headers:{"x-goog-api-key":key}});const status=await poll.json();
+    if(status.done){const resp=status.response||{};const videoUri=resp?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri||resp?.videos?.[0]?.gcsUri||resp?.videos?.[0]?.uri||resp?.generatedSamples?.[0]?.video?.uri||resp?.video?.uri;
+      if(!videoUri){if(resp?.generateVideoResponse?.raiMediaFilteredCount)throw new Error("안전 필터에 의해 영상이 차단되었습니다. 다른 이미지나 프롬프트로 다시 시도해주세요.");throw new Error("영상 URI를 받지 못했습니다.");}
+      const vidUrl=videoUri.replace("https://generativelanguage.googleapis.com/v1beta",BASE);const vidRes=await fetch(vidUrl,{headers:{"x-goog-api-key":key}});const blob=await vidRes.blob();return URL.createObjectURL(blob);}
+    if(status.error)throw new Error(status.error.message||"영상 생성 실패");}
+  throw new Error("영상 생성 시간이 초과되었습니다 (10분).");
+}
+function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({b64:r.result.split(",")[1],mime:f.type});r.onerror=rej;r.readAsDataURL(f);});}
+const Skeleton=()=><div style={{width:"100%",aspectRatio:"3/4",borderRadius:T.radius.lg,background:`linear-gradient(110deg,${T.bg.panel} 30%,${T.bg.elevated} 50%,${T.bg.panel} 70%)`,backgroundSize:"200% 100%",animation:"shimmer 1.8s ease-in-out infinite"}}/>;
 
-const Skeleton = () => <div style={{ width: "100%", aspectRatio: "3/4", borderRadius: T.radius.lg, background: `linear-gradient(110deg,${T.bg.panel} 30%,${T.bg.elevated} 50%,${T.bg.panel} 70%)`, backgroundSize: "200% 100%", animation: "shimmer 1.8s ease-in-out infinite" }} />;
-
-/* ═══ Pose Card with gradient border ═══ */
-function PoseCard({ pose, isEditing, onToggle, onEdit, onEditDone, onPromptChange, onRemove }) {
-  const active = pose.active;
-  // Gradient border trick: outer div = gradient bg + padding, inner div = card bg
-  return (
-    <div
-      onClick={(e) => { if (e.target.tagName === "TEXTAREA" || e.target.tagName === "BUTTON") return; onToggle(); }}
-      style={{
-        background: active ? T.blue.gradient : T.border.default,
-        padding: 2.5,
-        borderRadius: T.radius.lg,
-        cursor: "pointer",
-        transition: "all 150ms ease",
-        opacity: active ? 1 : 0.6,
-        height: "100%",
-      }}
-    >
-      <div style={{
-        background: active ? T.bg.page : T.bg.panel,
-        borderRadius: active ? T.radius.md : T.radius.md,
-        padding: 16,
-        display: "flex", flexDirection: "column", gap: 4,
-        minHeight: 90, height: "100%",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 15, fontWeight: 600, color: T.text.primary, marginRight: 6 }}>{pose.label}</span>
-            <span style={{ fontSize: 13, fontWeight: 400, color: T.text.muted }}>{pose.en}</span>
-          </div>
-          {active && <button
-            onClick={(e) => { e.stopPropagation(); isEditing ? onEditDone() : onEdit(); }}
-            style={S.miniBtn}
-          >
-            {isEditing ? "완료" : "편집"}
-          </button>}
-          {active && pose.id.startsWith("c_") && (
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ ...S.miniBtn, color: T.error }}>삭제</button>
-          )}
-        </div>
-        {isEditing ? (
-          <textarea
-            value={pose.prompt}
-            onChange={(e) => onPromptChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            style={S.ta}
-            rows={3}
-          />
-        ) : (
-          <p style={{
-            fontSize: 12, color: active ? T.text.secondary : T.text.muted,
-            lineHeight: 1.35, overflow: "hidden",
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-            margin: 0,
-          }}>{pose.prompt}</p>
-        )}
+function PoseCard({pose,isEditing,onToggle,onEdit,onEditDone,onPromptChange,onRemove}){
+  const active=pose.active;
+  return(<div onClick={(e)=>{if(e.target.tagName==="TEXTAREA"||e.target.tagName==="BUTTON")return;onToggle();}} style={{background:active?T.blue.gradient:T.border.default,padding:2.5,borderRadius:T.radius.lg,cursor:"pointer",transition:"all 150ms ease",opacity:active?1:0.6,height:"100%"}}>
+    <div style={{background:active?T.bg.page:T.bg.panel,borderRadius:T.radius.md,padding:16,display:"flex",flexDirection:"column",gap:4,minHeight:90,height:"100%"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{flex:1,minWidth:0}}><span style={{fontSize:15,fontWeight:600,color:T.text.primary,marginRight:6}}>{pose.label}</span><span style={{fontSize:13,fontWeight:400,color:T.text.muted}}>{pose.en}</span></div>
+        {active&&<button onClick={(e)=>{e.stopPropagation();isEditing?onEditDone():onEdit();}} style={S.miniBtn}>{isEditing?"완료":"편집"}</button>}
+        {active&&pose.id.startsWith("c_")&&<button onClick={(e)=>{e.stopPropagation();onRemove();}} style={{...S.miniBtn,color:T.error}}>삭제</button>}
       </div>
+      {isEditing?(<textarea value={pose.prompt} onChange={(e)=>onPromptChange(e.target.value)} onClick={(e)=>e.stopPropagation()} style={S.ta} rows={3}/>):(<p style={{fontSize:12,color:active?T.text.secondary:T.text.muted,lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",margin:0}}>{pose.prompt}</p>)}
+    </div></div>);
+}
+
+function ResultCard({pose,imgSrc,isSelected,onSelect}){
+  return(<div onClick={onSelect} style={{background:isSelected?T.blue.gradient:"transparent",padding:4,borderRadius:T.radius.lg,cursor:"pointer",transition:"all 200ms ease"}}>
+    <img src={imgSrc} alt={pose.label} style={{width:"100%",display:"block",borderRadius:T.radius.md,animation:"fadeUp 0.4s ease-out"}}/>
+  </div>);
+}
+
+function VideoPanel({pose,results,active,veoModel,setVeoModel,videoAspect,setVideoAspect,motionInput,setMotionInput,endFrames,setEndFrames,videoLoading,videoErrors,videoResults,onGenerate,onClose}){
+  const poseId=pose.id;const isLoading=videoLoading[poseId];const error=videoErrors[poseId];const result=videoResults[poseId];const elapsed=useElapsed(isLoading);
+  return(<div style={S.videoPanel}>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+      <div style={{width:64,height:48,borderRadius:6,overflow:"hidden",border:`1px solid ${T.border.default}`,flexShrink:0}}><img src={results[poseId]} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>
+      <div style={{flex:1,minWidth:0}}><p style={{fontSize:14,fontWeight:600,color:T.text.primary,margin:0}}>{pose.label} <span style={{fontWeight:400,color:T.text.muted}}>{pose.en}</span></p><p style={{fontSize:11,color:T.text.ghost,margin:0}}>시작 프레임</p></div>
+      <button onClick={onClose} style={{background:"none",border:"none",color:T.text.ghost,fontSize:18,cursor:"pointer",padding:4,lineHeight:1}}>✕</button>
     </div>
-  );
+    <div style={{marginBottom:10}}><label style={S.vpLabel}>끝 프레임</label><select value={endFrames[poseId]||""} onChange={e=>setEndFrames(p=>({...p,[poseId]:e.target.value||undefined}))} style={{...S.selectInput,width:"100%"}}><option value="">없음 — AI 자동</option>{active.filter(p=>p.id!==poseId&&results[p.id]).map(p=><option key={p.id} value={p.id}>{p.label} {p.en}</option>)}</select></div>
+    <div style={{marginBottom:10}}><label style={S.vpLabel}>모션 프롬프트</label><textarea value={motionInput[poseId]||""} onChange={e=>setMotionInput(p=>({...p,[poseId]:e.target.value}))} style={{...S.ta,marginTop:0,width:"100%"}} rows={2} placeholder={MOTION_HINTS[poseId]||"영상에서의 움직임을 묘사하세요"}/></div>
+    <div style={{display:"flex",gap:8,marginBottom:12}}><select value={videoAspect} onChange={e=>setVideoAspect(e.target.value)} style={{...S.selectInput,flex:1}}><option value="9:16">9:16 세로</option><option value="16:9">16:9 가로</option></select><select value={veoModel} onChange={e=>setVeoModel(e.target.value)} style={{...S.selectInput,flex:1}}>{VEO_MODELS.map(m=><option key={m.id} value={m.id}>{m.name} ({m.speed})</option>)}</select></div>
+    {!result&&(<button onClick={()=>onGenerate(poseId)} disabled={isLoading} style={{...S.blueBtn,background:T.black,width:"138px",margin:"0 auto",padding:"11px",justifyContent:"center",display:"flex",alignItems:"center",gap:8,opacity:isLoading?0.55:1,cursor:isLoading?"not-allowed":"pointer"}}>{isLoading?<><span style={S.spin}/>생성 중...</>:<>영상 생성하기</>}</button>)}
+    {isLoading&&(<div style={{marginTop:10,textAlign:"center"}}><div style={{width:"100%",height:3,borderRadius:2,background:T.border.default,overflow:"hidden",marginBottom:8}}><div style={{height:"100%",borderRadius:2,background:T.blue.gradient,transition:"width 1s linear",width:`${Math.min((elapsed/90)*100,95)}%`}}/></div><p style={{fontSize:12,color:T.text.muted,margin:0}}>{elapsed<10?"요청 전송 중...":elapsed<30?"AI가 영상을 생성하고 있습니다...":`생성 중... (${elapsed}초 경과)`}</p></div>)}
+    {error&&(<div style={{marginTop:8,padding:"8px 12px",borderRadius:T.radius.sm,background:"rgba(220,53,69,0.05)",border:"1px solid rgba(220,53,69,0.12)"}}><p style={{fontSize:12,color:T.error,margin:0}}>{error}</p></div>)}
+    {result&&(<div style={{marginTop:8}}><video src={result} controls autoPlay loop muted style={{width:"100%",borderRadius:8,border:`1px solid ${T.border.default}`,background:"#000"}}/><div style={{display:"flex",gap:8,marginTop:8}}><a href={result} download={`video_${poseId}.mp4`} style={{...S.cardBtn,flex:1,justifyContent:"center"}}>↓ 다운로드</a><button onClick={()=>onGenerate(poseId)} style={{...S.cardBtn,flex:1,justifyContent:"center"}}>↻ 재생성</button></div></div>)}
+  </div>);
 }
+function useElapsed(isActive){const[elapsed,setElapsed]=useState(0);useEffect(()=>{if(!isActive){setElapsed(0);return;}const t=setInterval(()=>setElapsed(s=>s+1),1000);return()=>clearInterval(t);},[isActive]);return elapsed;}
 
-/* ═══ ONBOARDING ═══ */
-function Onboard({ onClose, onKey }) {
-  const [step, setStep] = useState(0); const [k, setK] = useState("");
-  const steps = [
-    { n:"01", t:"Character Sheet", body:<div><p style={OB.txt}>캐릭터 이미지 한 장을 업로드하면, AI가 <strong>정면 · 측면 · 뒷면 · 하이앵글</strong> 등 다양한 각도의 이미지를 자동으로 생성합니다.</p><div style={OB.chips}>{["한 장 → 멀티앵글","4~8장 동시 생성","프롬프트 편집 가능","무료 사용 가능"].map((t,i)=><span key={i} style={OB.chip}>{t}</span>)}</div></div> },
-    { n:"02", t:"API 키가 필요합니다", body:<div><p style={OB.txt}>이 앱은 Google <strong>Gemini AI</strong>를 사용합니다.</p><div style={OB.info}><p style={OB.infoT}>무료인가요?</p><p style={OB.infoD}>네. Google AI Studio 무료 키로 하루 약 1,500회 생성 가능합니다.</p></div><div style={OB.info}><p style={OB.infoT}>안전한가요?</p><p style={OB.infoD}>키는 브라우저 탭에만 저장됩니다.</p></div></div> },
-    { n:"03", t:"API 키 발급받기", body:<div><div style={OB.stList}>{[{n:"1",t:"Google AI Studio 접속",s:<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={OB.link}>aistudio.google.com/app/apikey →</a>},{n:"2",t:"\"API 키 만들기\" 클릭",s:<span style={OB.sub}>파란색 버튼 → 즉시 생성</span>},{n:"3",t:"키 복사 후 아래에 붙여넣기",s:<span style={OB.sub}>AIza... 로 시작하는 문자열</span>}].map((s,i)=><div key={i} style={OB.stRow}><div style={OB.stN}>{s.n}</div><div><p style={OB.stT}>{s.t}</p>{s.s}</div></div>)}</div><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="API 키 붙여넣기" style={OB.keyIn}/>{k.trim()&&<button onClick={()=>{onKey(k);onClose();}} style={OB.startBtn}>시작하기</button>}</div> },
-    { n:"04", t:"사용 방법", body:<div style={OB.howG}>{[{n:"①",t:"이미지 업로드",d:"드래그 또는 클릭"},{n:"②",t:"포즈 선택",d:"카드 클릭으로 선택/해제"},{n:"③",t:"모델 선택",d:"하단에서 선택"},{n:"④",t:"생성 & 다운로드",d:"Generate → 다운로드"}].map((h,i)=><div key={i} style={OB.howC}><span style={OB.howN}>{h.n}</span><p style={OB.howT}>{h.t}</p><p style={OB.howD}>{h.d}</p></div>)}</div> },
+function Onboard({onClose,onKey}){
+  const[step,setStep]=useState(0);const[k,setK]=useState("");
+  const steps=[
+    {n:"01",t:"Character Sheet",body:<div><p style={OB.txt}>캐릭터 이미지 한 장을 업로드하면, AI가 <strong>정면 · 측면 · 뒷면 · 하이앵글</strong> 등 다양한 각도의 이미지를 자동으로 생성합니다.</p><div style={OB.chips}>{["한 장 → 멀티앵글","4~8장 동시 생성","프롬프트 편집 가능","무료 사용 가능"].map((t,i)=><span key={i} style={OB.chip}>{t}</span>)}</div></div>},
+    {n:"02",t:"API 키가 필요합니다",body:<div><p style={OB.txt}>이 앱은 Google <strong>Gemini AI</strong>를 사용합니다.</p><div style={OB.info}><p style={OB.infoT}>무료인가요?</p><p style={OB.infoD}>네. Google AI Studio 무료 키로 하루 약 1,500회 생성 가능합니다.</p></div><div style={OB.info}><p style={OB.infoT}>안전한가요?</p><p style={OB.infoD}>키는 브라우저 탭에만 저장됩니다.</p></div></div>},
+    {n:"03",t:"API 키 발급받기",body:<div><div style={OB.stList}>{[{n:"1",t:"Google AI Studio 접속",s:<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={OB.link}>aistudio.google.com/app/apikey →</a>},{n:"2",t:"\"API 키 만들기\" 클릭",s:<span style={OB.sub}>파란색 버튼 → 즉시 생성</span>},{n:"3",t:"키 복사 후 아래에 붙여넣기",s:<span style={OB.sub}>AIza... 로 시작하는 문자열</span>}].map((s,i)=><div key={i} style={OB.stRow}><div style={OB.stN}>{s.n}</div><div><p style={OB.stT}>{s.t}</p>{s.s}</div></div>)}</div><input type="password" value={k} onChange={e=>setK(e.target.value)} placeholder="API 키 붙여넣기" style={OB.keyIn}/>{k.trim()&&<button onClick={()=>{onKey(k);onClose();}} style={OB.startBtn}>시작하기</button>}</div>},
+    {n:"04",t:"사용 방법",body:<div style={OB.howG}>{[{n:"①",t:"이미지 업로드",d:"드래그 또는 클릭"},{n:"②",t:"포즈 선택",d:"카드 클릭으로 선택/해제"},{n:"③",t:"모델 선택",d:"하단에서 선택"},{n:"④",t:"생성 & 다운로드",d:"Generate → 다운로드"}].map((h,i)=><div key={i} style={OB.howC}><span style={OB.howN}>{h.n}</span><p style={OB.howT}>{h.t}</p><p style={OB.howD}>{h.d}</p></div>)}</div>},
   ];
-  const c=steps[step], last=step===steps.length-1;
-  return (<div style={OB.ov}><div style={OB.card}>
-    <button onClick={onClose} style={OB.x}>✕</button>
-    <div style={OB.dots}>{steps.map((_,i)=><div key={i} style={{...OB.dot,...(i===step?OB.dotA:i<step?OB.dotD:{})}}/>)}</div>
-    <p style={OB.stepL}>STEP {c.n} <span style={{color:T.text.ghost}}>/ 04</span></p>
-    <h2 style={OB.title}>{c.t}</h2>{c.body}
-    <div style={OB.nav}>{step>0&&<button onClick={()=>setStep(step-1)} style={OB.back}>← 이전</button>}<div style={{flex:1}}/><button onClick={last?onClose:()=>setStep(step+1)} style={OB.next}>{last?"시작하기":"다음 →"}</button></div>
-  </div></div>);
+  const c=steps[step],last=step===steps.length-1;
+  return(<div style={OB.ov}><div style={OB.card}><button onClick={onClose} style={OB.x}>✕</button><div style={OB.dots}>{steps.map((_,i)=><div key={i} style={{...OB.dot,...(i===step?OB.dotA:i<step?OB.dotD:{})}}/>)}</div><p style={OB.stepL}>STEP {c.n} <span style={{color:T.text.ghost}}>/ 04</span></p><h2 style={OB.title}>{c.t}</h2>{c.body}<div style={OB.nav}>{step>0&&<button onClick={()=>setStep(step-1)} style={OB.back}>← 이전</button>}<div style={{flex:1}}/><button onClick={last?onClose:()=>setStep(step+1)} style={OB.next}>{last?"시작하기":"다음 →"}</button></div></div></div>);
 }
 
-/* ═══ MAIN ═══ */
-export default function App() {
-  const [apiKey,setApiKey]=useState(""); const [loaded,setLoaded]=useState(false);
-  const [showKey,setShowKey]=useState(false); const [model,setModel]=useState(MODELS[0].id);
-  const [srcImg,setSrcImg]=useState(null); const [srcFile,setSrcFile]=useState(null);
-  const [poses,setPoses]=useState(DEFAULT_POSES); const [results,setResults]=useState({});
-  const [loading,setLoading]=useState({}); const [errors,setErrors]=useState({});
-  const [gErr,setGErr]=useState(null); const [gen,setGen]=useState(false);
-  const [editing,setEditing]=useState(null); const [showAdd,setShowAdd]=useState(false);
-  const [nLabel,setNLabel]=useState(""); const [nPrompt,setNPrompt]=useState("");
-  const [showOB,setShowOB]=useState(false);
-  const [showModel,setShowModel]=useState(false);
-  const [uploading,setUploading]=useState(false);
-  const [imgError,setImgError]=useState(false);
-  const [srcName,setSrcName]=useState("");
-  const [keyStatus,setKeyStatus]=useState(null); // null | 'checking' | 'valid' | 'invalid'
-  const fRef=useRef(null); const kRef=useRef("");
+export default function App(){
+  const[apiKey,setApiKey]=useState("");const[loaded,setLoaded]=useState(false);const[showKey,setShowKey]=useState(false);const[model,setModel]=useState(MODELS[0].id);
+  const[srcImg,setSrcImg]=useState(null);const[srcFile,setSrcFile]=useState(null);const[poses,setPoses]=useState(DEFAULT_POSES);const[results,setResults]=useState({});
+  const[loading,setLoading]=useState({});const[errors,setErrors]=useState({});const[gErr,setGErr]=useState(null);const[gen,setGen]=useState(false);
+  const[editing,setEditing]=useState(null);const[showAdd,setShowAdd]=useState(false);const[nLabel,setNLabel]=useState("");const[nPrompt,setNPrompt]=useState("");
+  const[showOB,setShowOB]=useState(false);const[showModel,setShowModel]=useState(false);const[showLimitPopup,setShowLimitPopup]=useState(false);
+  const[videoPanels,setVideoPanels]=useState({});const[videoResults,setVideoResults]=useState({});const[videoLoading,setVideoLoading]=useState({});const[videoErrors,setVideoErrors]=useState({});
+  const[veoModel,setVeoModel]=useState(VEO_MODELS[0].id);const[motionInput,setMotionInput]=useState({});const[endFrames,setEndFrames]=useState({});const[videoAspect,setVideoAspect]=useState("9:16");
+  const[uploading,setUploading]=useState(false);const[imgError,setImgError]=useState(false);const[srcName,setSrcName]=useState("");const[keyStatus,setKeyStatus]=useState(null);
+  const[barMode,setBarMode]=useState("image");const resultRef=useRef(null);const videoSectionRef=useRef(null);
+  const fRef=useRef(null);const kRef=useRef("");
   useEffect(()=>{kRef.current=apiKey;},[apiKey]);
   useEffect(()=>{try{const k=sessionStorage?.getItem("cs_k");if(k)setApiKey(k);else setShowOB(true);const m=sessionStorage?.getItem("cs_m");if(m)setModel(m);}catch{setShowOB(true);}setLoaded(true);},[]);
   useEffect(()=>{if(loaded)try{sessionStorage?.setItem("cs_k",apiKey);}catch{}},[apiKey,loaded]);
   useEffect(()=>{try{sessionStorage?.setItem("cs_m",model);}catch{}},[model]);
+  useEffect(()=>{const resultEl=resultRef.current;const videoEl=videoSectionRef.current;let videoVisible=false;const update=()=>setBarMode(videoVisible?"video":"image");const resultObs=new IntersectionObserver(([e])=>update(),{threshold:0.05});const videoObs=new IntersectionObserver(([e])=>{videoVisible=e.isIntersecting;update();},{threshold:0.05});if(resultEl)resultObs.observe(resultEl);if(videoEl)videoObs.observe(videoEl);return()=>{resultObs.disconnect();videoObs.disconnect();};});
 
-  const active=poses.filter(p=>p.active); const curM=MODELS.find(m=>m.id===model)||MODELS[0];
+  const active=poses.filter(p=>p.active);const curM=MODELS.find(m=>m.id===model)||MODELS[0];
+  const openVideoPanels=active.filter(p=>videoPanels[p.id]&&results[p.id]);
+  const pendingVideos=active.filter(p=>videoPanels[p.id]&&results[p.id]&&!videoResults[p.id]&&!videoLoading[p.id]);
+  const selectedCount=openVideoPanels.length;
+  const curVeo=VEO_MODELS.find(m=>m.id===veoModel)||VEO_MODELS[0];
+
   const onDrop=useCallback(e=>{e.preventDefault();const f=e.dataTransfer?.files?.[0]||e.target?.files?.[0];if(!f||!f.type.startsWith("image/"))return;setSrcFile(f);setSrcName(f.name);setImgError(false);setUploading(true);setResults({});setErrors({});const reader=new FileReader();reader.onload=()=>{setSrcImg(reader.result);setTimeout(()=>setUploading(false),600);};reader.onerror=()=>{setSrcImg(null);setImgError(true);setUploading(false);};reader.readAsDataURL(f);},[]);
-
-  const verifyKey=async()=>{
-    if(!apiKey.trim()){setKeyStatus('invalid');return;}
-    setKeyStatus('checking');
-    try{
-      const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if(r.ok){setKeyStatus('valid');setTimeout(()=>setKeyStatus(null),3000);}
-      else{setKeyStatus('invalid');}
-    }catch{setKeyStatus('invalid');}
-  };
-
+  const verifyKey=async()=>{if(!apiKey.trim()){setKeyStatus('invalid');return;}setKeyStatus('checking');try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);if(r.ok){setKeyStatus('valid');setTimeout(()=>setKeyStatus(null),3000);}else{setKeyStatus('invalid');}}catch{setKeyStatus('invalid');}};
   const doGen=async()=>{
-    if(!apiKey.trim()){setGErr("API 키를 입력하고 확인 버튼을 눌러주세요.");return;} if(!srcFile){setGErr("이미지를 업로드해주세요.");return;} if(!active.length){setGErr("포즈를 1개 이상 활성화해주세요.");return;}
-    setGErr(null);setGen(true);setResults({});setErrors({});
-    const nl={};active.forEach(p=>{nl[p.id]=true;});setLoading(nl);
-    try{
-      const{b64,mime}=await toB64(srcFile);
-      await Promise.all(active.map(async pose=>{
-        try{const img=await genImg(kRef.current,model,pose.prompt,b64,mime);setResults(p=>({...p,[pose.id]:img}));}
-        catch(err){setErrors(p=>({...p,[pose.id]:err.message}));}
-        finally{setLoading(p=>({...p,[pose.id]:false}));}
-      }));
-    }catch(err){setGErr("생성 중 오류가 발생했습니다: "+err.message);}
-    setGen(false);
+    if(!apiKey.trim()){setGErr("API 키를 입력하고 확인 버튼을 눌러주세요.");return;}if(!srcFile){setGErr("이미지를 업로드해주세요.");return;}if(!active.length){setGErr("포즈를 1개 이상 활성화해주세요.");return;}
+    setGErr(null);setGen(true);setResults({});setErrors({});setVideoPanels({});const nl={};active.forEach(p=>{nl[p.id]=true;});setLoading(nl);
+    try{const{b64,mime}=await toB64(srcFile);await Promise.all(active.map(async pose=>{try{const img=await genImg(kRef.current,model,pose.prompt,b64,mime);setResults(p=>({...p,[pose.id]:img}));}catch(err){if(err.message==="RATE_LIMIT_EXCEEDED")setShowLimitPopup(true);setErrors(p=>({...p,[pose.id]:err.message==="RATE_LIMIT_EXCEEDED"?"일일 한도 초과":err.message}));}finally{setLoading(p=>({...p,[pose.id]:false}));}}));}catch(err){setGErr("생성 중 오류가 발생했습니다: "+err.message);}setGen(false);
   };
-
-  const dlAll=()=>{active.forEach(p=>{if(!results[p.id])return;const a=document.createElement("a");a.href=results[p.id];a.download=`character_${p.id}.png`;a.click();});};
-  const dlGrid=()=>{
-    const v=active.filter(p=>results[p.id]);if(!v.length)return;
-    const cols=Math.min(v.length,4),rows=Math.ceil(v.length/cols),cell=1024;
-    const c=document.createElement("canvas");c.width=cols*cell;c.height=rows*cell;
-    const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);
-    let ld=0;const imgs=[];
-    v.forEach((pose,idx)=>{const img=new Image();img.crossOrigin="anonymous";img.onload=()=>{imgs[idx]=img;ld++;if(ld===v.length){imgs.forEach((im,i)=>{if(im)ctx.drawImage(im,(i%cols)*cell,Math.floor(i/cols)*cell,cell,cell);});const a=document.createElement("a");a.href=c.toDataURL("image/png");a.download="character_sheet.png";a.click();}};img.src=results[pose.id];});
-  };
-
-  const hasRes=Object.values(results).some(Boolean);
-  const gc=Math.min(active.length||1,4);
+  const dlOne=(poseId)=>{if(!results[poseId])return;const a=document.createElement("a");a.href=results[poseId];a.download=`character_${poseId}.png`;a.click();};
+  const dlAll=()=>{active.forEach(p=>{dlOne(p.id);});};
+  const dlGrid=()=>{const v=active.filter(p=>results[p.id]);if(!v.length)return;const cols=Math.min(v.length,4),rows=Math.ceil(v.length/cols),cell=1024;const c=document.createElement("canvas");c.width=cols*cell;c.height=rows*cell;const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);let ld=0;const imgs=[];v.forEach((pose,idx)=>{const img=new Image();img.crossOrigin="anonymous";img.onload=()=>{imgs[idx]=img;ld++;if(ld===v.length){imgs.forEach((im,i)=>{if(im)ctx.drawImage(im,(i%cols)*cell,Math.floor(i/cols)*cell,cell,cell);});const a=document.createElement("a");a.href=c.toDataURL("image/png");a.download="character_sheet.png";a.click();}};img.src=results[pose.id];});};
+  const hasRes=Object.values(results).some(Boolean);const gc=Math.min(active.length||1,4);
+  const doGenVideo=async(poseId)=>{const imgSrc=results[poseId];if(!imgSrc||!apiKey.trim())return;setVideoLoading(p=>({...p,[poseId]:true}));setVideoErrors(p=>{const n={...p};delete n[poseId];return n;});setVideoResults(p=>{const n={...p};delete n[poseId];return n;});try{const b64=imgSrc.split(",")[1];const mime=imgSrc.split(";")[0].split(":")[1];const prompt=motionInput[poseId]||"The subject moves naturally with smooth, cinematic motion";let endB64=null,endMime=null;const endId=endFrames[poseId];if(endId&&results[endId]){endB64=results[endId].split(",")[1];endMime=results[endId].split(";")[0].split(":")[1];}const url=await genVideo(kRef.current,veoModel,prompt,b64,mime,endB64,endMime,videoAspect);setVideoResults(p=>({...p,[poseId]:url}));}catch(err){if(err.message==="RATE_LIMIT_EXCEEDED")setShowLimitPopup(true);const msg=err.message==="RATE_LIMIT_EXCEEDED"?"일일 한도 초과":err.message.includes("not found")||err.message.includes("permission")?"영상 생성은 유료 API 키가 필요합니다. Google AI Premium 플랜을 확인해주세요.":err.message;setVideoErrors(p=>({...p,[poseId]:msg}));}finally{setVideoLoading(p=>({...p,[poseId]:false}));}};
 
   return (
     <div style={S.root}>
@@ -210,314 +162,70 @@ export default function App() {
       `}</style>
 
       {showOB&&<Onboard onClose={()=>setShowOB(false)} onKey={k=>setApiKey(k)}/>}
+      {showLimitPopup&&(<div style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"overlayIn 0.2s"}}><div style={{maxWidth:420,width:"100%",background:"#fff",borderRadius:12,padding:"32px 28px 24px",boxShadow:"0 16px 60px rgba(0,0,0,0.12)",animation:"cardIn 0.3s ease-out",textAlign:"center"}}><div style={{width:56,height:56,borderRadius:"50%",background:"rgba(234,67,53,0.08)",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:16}}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EA4335" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><h3 style={{fontSize:18,fontWeight:600,color:"#111",marginBottom:8,fontFamily:"'Noto Sans KR',sans-serif"}}>일일 생성 한도 초과</h3><p style={{fontSize:14,color:"#6B6B6B",lineHeight:1.6,marginBottom:20}}>오늘의 무료 생성 한도(20장)를 모두 사용했습니다.<br/>내일 다시 시도하거나, Google AI Premium 플랜으로<br/>업그레이드하면 제한 없이 사용할 수 있습니다.</p><div style={{display:"flex",gap:10,justifyContent:"center"}}><button onClick={()=>setShowLimitPopup(false)} style={{padding:"10px 24px",borderRadius:8,border:"none",background:"#111",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer"}}>확인</button><a href="https://one.google.com/about/ai-premium" target="_blank" rel="noopener noreferrer" style={{padding:"10px 24px",borderRadius:8,border:"1px solid #D4D4D8",background:"transparent",color:"#6B6B6B",fontSize:14,fontWeight:500,cursor:"pointer",textDecoration:"none",display:"inline-flex",alignItems:"center"}}>플랜 알아보기</a></div></div></div>)}
 
-      {/* LOADING OVERLAY */}
-      {gen && (
-        <div style={S.loadingOverlay}>
-          <div style={S.loadingCard}>
-            <div style={S.loadingSpinner}/>
-            <p style={S.loadingTitle}>이미지를 생성하고 있습니다</p>
-            <p style={S.loadingSub}>{active.length}장의 포즈를 생성 중입니다. 잠시만 기다려주세요.</p>
-            <p style={S.loadingCount}>
-              {Object.values(loading).filter(v=>!v).length} / {active.length} 완료
-            </p>
-          </div>
-        </div>
-      )}
+      {gen&&(<div style={S.loadingOverlay}><div style={S.loadingCard}><div style={S.loadingSpinner}/><p style={S.loadingTitle}>이미지를 생성하고 있습니다</p><p style={S.loadingSub}>{active.length}장의 포즈를 생성 중입니다. 잠시만 기다려주세요.</p><p style={S.loadingCount}>{Object.values(loading).filter(v=>!v).length} / {active.length} 완료</p></div></div>)}
 
-      {/* HEADER */}
-      <header style={S.header}><div style={S.wrap}>
-        <div style={S.headerIn}>
-          <div style={{flex:1}}/>
-          <div style={S.logoCenter}>
-            <div style={S.logoRow}><GeminiStar size={36}/><h1 style={S.logoTitle}>Multi-Angle Image Generator</h1></div>
-            <p style={S.logoSub}>Turn one image into a full character sheet</p>
-          </div>
-          <div style={{flex:1,display:"flex",justifyContent:"flex-end"}}>
-            <button onClick={()=>setShowOB(true)} style={S.helpBtn}>시작가이드 <span style={S.helpQ}>?</span></button>
-          </div>
-        </div>
-      </div></header>
+      <header style={S.header}><div style={S.wrap}><div style={S.headerIn}><div style={{flex:1,display:"flex",alignItems:"flex-end"}}><span style={S.verLabel}>ver {pkg.version}</span></div><div style={S.logoCenter}><div style={S.logoRow}><GeminiStar size={36}/><h1 style={S.logoTitle}>Multi-Angle Image Generator</h1></div><p style={S.logoSub}>From one image to every angle and motion</p></div><div style={{flex:1,display:"flex",justifyContent:"flex-end"}}><button onClick={()=>setShowOB(true)} style={S.helpBtn}>시작가이드 <span style={S.helpQ}>?</span></button></div></div></div></header>
 
-      {/* MIDDLE */}
       <div style={S.midZone}><div style={S.wrap}><main style={S.main}>
-        {/* API KEY */}
         <section>
-          <div style={{display:"flex",alignItems:"baseline",gap:14,marginBottom:12}}>
-            <label style={{...S.secTitle,marginBottom:0}}>API Key</label>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={S.keyLink}>키가 없으신가요?&nbsp;&nbsp;<span style={{textDecoration:"underline"}}>발급받기</span></a>
-          </div>
-          <div style={S.apiRow}>
-            <div style={{flex:1,position:"relative",minWidth:200}}>
-              <input type={showKey?"text":"password"} value={apiKey} onChange={e=>{setApiKey(e.target.value);setKeyStatus(null);}} placeholder="API 키를 입력하세요. 이 탭이 열려있는 동안 유지되며, 서버로 전송되지 않습니다." style={{...S.apiInput,paddingRight:40,width:"100%",letterSpacing:"-0.05em"}}/>
-              <button onClick={()=>setShowKey(!showKey)} style={S.eyeBtn} title={showKey?"숨기기":"보기"}>
-                {showKey ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-            <button onClick={verifyKey} disabled={keyStatus==='checking'} style={S.verifyBtn}>
-              {keyStatus==='checking'?'확인 중...':'확인'}
-            </button>
-          </div>
+          <div style={{display:"flex",alignItems:"baseline",gap:14,marginBottom:12}}><label style={{...S.secTitle,marginBottom:0}}>API Key</label><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={S.keyLink}>키가 없으신가요?&nbsp;&nbsp;<span style={{textDecoration:"underline"}}>발급받기</span></a></div>
+          <div style={S.apiRow}><div style={{flex:1,position:"relative",minWidth:200}}><input type={showKey?"text":"password"} value={apiKey} onChange={e=>{setApiKey(e.target.value);setKeyStatus(null);}} placeholder="API 키를 입력하세요. 이 탭이 열려있는 동안 유지되며, 서버로 전송되지 않습니다." style={{...S.apiInput,paddingRight:40,width:"100%",letterSpacing:"-0.05em"}}/><button onClick={()=>setShowKey(!showKey)} style={S.eyeBtn} title={showKey?"숨기기":"보기"}>{showKey?<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}</button></div><button onClick={verifyKey} disabled={keyStatus==='checking'} style={S.verifyBtn}>{keyStatus==='checking'?'확인 중...':'확인'}</button></div>
           {keyStatus==='valid'&&<p style={S.keyValid}>✓ API 키가 확인되었습니다. 이미지를 업로드하고 Generate 버튼을 눌러주세요.</p>}
           {keyStatus==='invalid'&&<p style={S.keyInvalid}>⚠ 키 확인에 실패했습니다. 현재 미리보기 환경에서는 외부 API 호출이 제한될 수 있습니다. 로컬 환경에서 다시 시도해주세요.</p>}
         </section>
-
-        {/* SOURCE + POSES */}
-        <section>
-          <div style={S.comboGrid}>
-            <div>
-              <label style={S.secTitle}>소스 이미지</label>
-              <div style={{...S.drop,...(srcImg&&!uploading?S.dropFill:{})}} onDragOver={e=>e.preventDefault()} onDrop={onDrop} onClick={()=>fRef.current?.click()}>
-                <input ref={fRef} type="file" accept="image/*" onChange={onDrop} style={{display:"none"}}/>
-                {uploading ? (
-                  <div style={S.dropInner}>
-                    <div style={S.uploadBarTrack}><div style={S.uploadBarFill}/></div>
-                    <p style={{...S.dropT,marginTop:12}}>Uploading...</p>
-                  </div>
-                ) : srcImg && !imgError ? (
-                  <div style={{position:"relative",width:"100%",height:"100%"}}>
-                    <img src={srcImg} alt="" style={S.prev} onError={()=>setImgError(true)}/>
-                    <button onClick={(e)=>{e.stopPropagation();setSrcImg(null);setSrcFile(null);setSrcName("");setResults({});setErrors({});}}
-                      style={{position:"absolute",top:8,right:8,width:28,height:28,borderRadius:6,border:"none",background:"rgba(0,0,0,0.5)",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-                  </div>
-
-                ) : srcName ? (
-                  <div style={S.dropInner}>
-                    <div style={S.fileIcon}>
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.text.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                    </div>
-                    <p style={S.dropT}>{srcName}</p>
-                    <p style={S.dropH}>이미지가 로드되었습니다</p>
-                  </div>
-                ) : (
-                  <div style={S.dropInner}>
-                    <div style={S.dropBox}><span style={S.dropPlus}>+</span></div>
-                    <p style={S.dropT}>Upload</p>
-                    <p style={S.dropH}>Drop image or click</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}>
-                <label style={{...S.secTitle,marginBottom:0}}>포즈 설정</label>
-                <span style={S.countBadge}>{active.length}개 활성</span>
-              </div>
-              <div style={S.poseGrid}>
-                {poses.map(pose => (
-                  <PoseCard
-                    key={pose.id}
-                    pose={pose}
-                    isEditing={editing === pose.id}
-                    onToggle={() => setPoses(p => p.map(x => x.id === pose.id ? { ...x, active: !x.active } : x))}
-                    onEdit={() => setEditing(pose.id)}
-                    onEditDone={() => setEditing(null)}
-                    onPromptChange={(v) => setPoses(p => p.map(x => x.id === pose.id ? { ...x, prompt: v } : x))}
-                    onRemove={() => setPoses(p => p.filter(x => x.id !== pose.id))}
-                  />
-                ))}
-              </div>
-              {showAdd?(
-                <div style={S.addForm}>
-                  <input placeholder="포즈 이름 (예: 점프샷)" value={nLabel} onChange={e=>setNLabel(e.target.value)} style={S.addIn}/>
-                  <textarea placeholder="프롬프트를 입력하세요" value={nPrompt} onChange={e=>setNPrompt(e.target.value)} style={S.ta} rows={2}/>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>{if(!nLabel.trim()||!nPrompt.trim())return;setPoses(p=>[...p,{id:`c_${Date.now()}`,label:nLabel,en:"Custom",prompt:nPrompt,active:true}]);setNLabel("");setNPrompt("");setShowAdd(false);}} style={S.blueBtn}>추가</button>
-                    <button onClick={()=>setShowAdd(false)} style={S.outBtn}>취소</button>
-                  </div>
-                </div>
-              ):(
-                <button onClick={()=>setShowAdd(true)} style={S.addPoseBtn}>+ 커스텀 포즈 추가</button>
-              )}
-            </div>
+        <section><div style={S.comboGrid}>
+          <div style={{display:"flex",flexDirection:"column"}}><label style={S.secTitle}>소스 이미지</label><div style={{...S.drop,...(srcImg&&!uploading?S.dropFill:{})}} onDragOver={e=>e.preventDefault()} onDrop={onDrop} onClick={()=>fRef.current?.click()}><input ref={fRef} type="file" accept="image/*" onChange={onDrop} style={{display:"none"}}/>{uploading?(<div style={S.dropInner}><div style={S.uploadBarTrack}><div style={S.uploadBarFill}/></div><p style={{...S.dropT,marginTop:12}}>Uploading...</p></div>):srcImg&&!imgError?(<div style={{position:"relative",width:"100%",height:"100%"}}><img src={srcImg} alt="" style={S.prev} onError={()=>setImgError(true)}/><button onClick={(e)=>{e.stopPropagation();setSrcImg(null);setSrcFile(null);setSrcName("");setResults({});setErrors({});setVideoPanels({});}} style={{position:"absolute",top:8,right:8,width:28,height:28,borderRadius:6,border:"none",background:"rgba(0,0,0,0.5)",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button></div>):srcName?(<div style={S.dropInner}><div style={S.fileIcon}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.text.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div><p style={S.dropT}>{srcName}</p><p style={S.dropH}>이미지가 로드되었습니다</p></div>):(<div style={S.dropInner}><div style={S.dropBox}><span style={S.dropPlus}>+</span></div><p style={S.dropT}>Upload</p><p style={S.dropH}>Drop image or click</p></div>)}</div></div>
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}><label style={{...S.secTitle,marginBottom:0}}>포즈 설정</label><span style={S.countBadge}>{active.length}개 활성</span></div>
+            <div style={S.poseGrid}>{poses.map(pose=>(<PoseCard key={pose.id} pose={pose} isEditing={editing===pose.id} onToggle={()=>setPoses(p=>p.map(x=>x.id===pose.id?{...x,active:!x.active}:x))} onEdit={()=>setEditing(pose.id)} onEditDone={()=>setEditing(null)} onPromptChange={(v)=>setPoses(p=>p.map(x=>x.id===pose.id?{...x,prompt:v}:x))} onRemove={()=>setPoses(p=>p.filter(x=>x.id!==pose.id))}/>))}</div>
+            {showAdd?(<div style={S.addForm}><input placeholder="포즈 이름 (예: 점프샷)" value={nLabel} onChange={e=>setNLabel(e.target.value)} style={S.addIn}/><textarea placeholder="프롬프트를 입력하세요" value={nPrompt} onChange={e=>setNPrompt(e.target.value)} style={S.ta} rows={2}/><div style={{display:"flex",gap:8}}><button onClick={()=>{if(!nLabel.trim()||!nPrompt.trim())return;setPoses(p=>[...p,{id:`c_${Date.now()}`,label:nLabel,en:"Custom",prompt:nPrompt,active:true}]);setNLabel("");setNPrompt("");setShowAdd(false);}} style={S.blueBtn}>추가</button><button onClick={()=>setShowAdd(false)} style={S.outBtn}>취소</button></div></div>):(<button onClick={()=>setShowAdd(true)} style={S.addPoseBtn}>+ 커스텀 포즈 추가</button>)}
           </div>
-        </section>
-
-        {/* ERROR BANNER */}
+        </div></section>
         {gErr&&<div style={S.errBanner}>{gErr}</div>}
-
-        {/* RESULTS */}
         {(Object.values(loading).some(Boolean)||hasRes)&&(
-          <section>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:14}}>
-              <label style={{...S.secTitle,marginBottom:0}}>생성 결과</label>
-              {hasRes&&<div style={{display:"flex",gap:8}}>
-                <button onClick={dlAll} style={S.outBtn}>개별 다운로드</button>
-                <button onClick={dlGrid} style={S.outBtn}>그리드 다운로드</button>
-              </div>}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:`repeat(${gc},1fr)`,gap:16}}>
-              {active.map(pose=>(
-                <div key={pose.id}>
-                  <p style={S.resLabel}>{pose.label} <span style={{fontWeight:400,color:T.text.muted}}>{pose.en}</span></p>
-                  {loading[pose.id]?<Skeleton/>:
-                    errors[pose.id]?<div style={S.errCard}><p style={{fontSize:13,color:T.error,textAlign:"center"}}>{errors[pose.id]}</p></div>:
-                    results[pose.id]?<img src={results[pose.id]} alt={pose.label} style={S.resImg}/>:null}
-                </div>
-              ))}
-            </div>
+          <section ref={resultRef}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:14}}><label style={{...S.secTitle,marginBottom:0}}>생성 결과</label><div style={{display:"flex",gap:8,alignItems:"center"}}>{selectedCount>0&&<span style={{fontSize:12,color:T.blue.to,fontWeight:500}}>{selectedCount}개 선택됨</span>}{hasRes&&<><button onClick={dlAll} style={S.outBtn}>개별 다운로드</button><button onClick={dlGrid} style={S.outBtn}>그리드 다운로드</button></>}</div></div>
+            <div style={{display:"grid",gridTemplateColumns:`repeat(${gc},1fr)`,gap:16}}>{active.map(pose=>(<div key={pose.id}><p style={S.resLabel}>{pose.label} <span style={{fontWeight:400,color:T.text.muted}}>{pose.en}</span></p>{loading[pose.id]?<Skeleton/>:errors[pose.id]?<div style={S.errCard}><p style={{fontSize:13,color:T.error,textAlign:"center"}}>{errors[pose.id]}</p></div>:results[pose.id]?(<ResultCard pose={pose} imgSrc={results[pose.id]} isSelected={!!videoPanels[pose.id]} onSelect={()=>setVideoPanels(p=>({...p,[pose.id]:!p[pose.id]}))}/>):null}</div>))}</div>
           </section>
         )}
       </main></div></div>
 
-      {/* BOTTOM BAR */}
+      {openVideoPanels.length>0&&(
+        <div ref={videoSectionRef} style={S.videoZone}><div style={S.wrap}>
+          <section style={{padding:"0 0 20px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:14}}><label style={{...S.secTitle,marginBottom:0}}>영상 생성</label><span style={{fontSize:12,color:T.text.ghost,fontFamily:T.font.mono}}>{Object.values(videoResults).filter(Boolean).length} / {openVideoPanels.length} 완료</span></div>
+            <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(openVideoPanels.length,3)},1fr)`,gap:16}}>{openVideoPanels.map(pose=>(<VideoPanel key={`vid_${pose.id}`} pose={pose} results={results} active={active} veoModel={veoModel} setVeoModel={setVeoModel} videoAspect={videoAspect} setVideoAspect={setVideoAspect} motionInput={motionInput} setMotionInput={setMotionInput} endFrames={endFrames} setEndFrames={setEndFrames} videoLoading={videoLoading} videoErrors={videoErrors} videoResults={videoResults} onGenerate={doGenVideo} onClose={()=>setVideoPanels(p=>({...p,[pose.id]:false}))}/>))}</div>
+          </section>
+        </div></div>
+      )}
+
       <div style={S.bar}><div style={S.wrap}>
-        <div style={S.barIn}>
-          {/* Left — model selector + helper */}
-          <div style={{display:"flex",alignItems:"center",gap:40}}>
-            <div style={{position:"relative"}}>
-              <button onClick={()=>setShowModel(!showModel)} style={S.modelTrigger}>
-                <svg width="14" height="14" viewBox="0 0 28 28" fill="none" style={{flexShrink:0}}>
-                  <path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gsMini)"/>
-                  <defs><linearGradient id="gsMini" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs>
-                </svg>
-                <span style={{fontWeight:500}}>{curM.name}</span>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{opacity:0.4}}><path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
-              {showModel && (
-                <div style={S.modelDrop}>
-                  <div style={S.modelDropHeader}>
-                    <span style={{fontSize:13,fontWeight:600,color:T.text.primary}}>Models</span>
-                    <span style={{fontSize:12,color:T.text.muted}}>Cost / image</span>
-                  </div>
-                  {MODELS.map(m=>(
-                    <button key={m.id} onClick={()=>{setModel(m.id);setShowModel(false);}}
-                      style={{...S.modelDropItem,...(model===m.id?S.modelDropItemActive:{})}}>
-                      <svg width="12" height="12" viewBox="0 0 28 28" fill="none" style={{flexShrink:0}}>
-                        <path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gsDrop)"/>
-                        <defs><linearGradient id="gsDrop" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs>
-                      </svg>
-                      <span style={{fontWeight:model===m.id?600:400}}>
-                        {m.name}
-                        {m.badge&&<span style={{marginLeft:6,padding:"1px 5px",borderRadius:3,background:"rgba(26,115,232,0.1)",color:T.blue.to,fontSize:9,fontWeight:600}}>{m.badge}</span>}
-                      </span>
-                      <span style={{fontSize:12,color:T.text.muted,fontFamily:T.font.mono}}>${m.cost}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+        {barMode==="video"?(
+          <div style={S.barIn}>
+            <span style={{fontSize:13,color:T.text.muted}}>{Object.values(videoLoading).some(Boolean)?`영상 생성 중... (${Object.values(videoLoading).filter(Boolean).length}개 진행)`:"이미지를 클릭하고 Veo3.1 영상을 생성하세요! 모션 프롬프트를 입력하고 '전체 영상 생성' 버튼을 누르세요!"}</span>
+            <div style={S.barRight}>
+              {pendingVideos.length>0&&<><span style={S.costTxt}>{pendingVideos.length}개 × ${curVeo.cost.toFixed(2)} = <strong>${(pendingVideos.length*curVeo.cost).toFixed(2)}</strong></span><button onClick={()=>{pendingVideos.forEach(p=>doGenVideo(p.id));}} style={S.genBtn}>전체 영상 생성 · {pendingVideos.length}</button></>}
             </div>
-            <span style={{fontSize:13,color:T.text.ghost}}> 모델을 선택하고 생성하기 버튼을 누르세요! (무료 사용자도 최신 모델 가능! 일일 최대 20장 제한)</span>
           </div>
-          {/* Right */}
-          <div style={S.barRight}>
-            <span style={S.costTxt}>{active.length}장 × ${curM.cost} = <strong>${(active.length*curM.cost).toFixed(3)}</strong></span>
-            {gErr&&<span style={{fontSize:13,color:T.error,fontWeight:500}}>{gErr}</span>}
-            <button onClick={doGen} disabled={gen} style={{...S.genBtn,...(gen?{opacity:0.55,cursor:"not-allowed"}:{})}}>
-              {gen?<><span style={S.spin}/>생성 중...</>:<>생성하기 · {active.length}</>}
-            </button>
+        ):(
+          <div style={S.barIn}>
+            <div style={{display:"flex",alignItems:"center",gap:40}}>
+              <div style={{position:"relative"}}>
+                <button onClick={()=>setShowModel(!showModel)} style={S.modelTrigger}><svg width="14" height="14" viewBox="0 0 28 28" fill="none" style={{flexShrink:0}}><path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gsMini)"/><defs><linearGradient id="gsMini" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs></svg><span style={{fontWeight:500}}>{curM.name}</span><svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{opacity:0.4}}><path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
+                {showModel&&(<div style={S.modelDrop}><div style={S.modelDropHeader}><span style={{fontSize:13,fontWeight:600,color:T.text.primary}}>Models</span><span style={{fontSize:12,color:T.text.muted}}>Cost / image</span></div>{MODELS.map(m=>(<button key={m.id} onClick={()=>{setModel(m.id);setShowModel(false);}} style={{...S.modelDropItem,...(model===m.id?S.modelDropItemActive:{})}}><svg width="12" height="12" viewBox="0 0 28 28" fill="none" style={{flexShrink:0}}><path d="M14 0C14 7.732 7.732 14 0 14C7.732 14 14 20.268 14 28C14 20.268 20.268 14 28 14C20.268 14 14 7.732 14 0Z" fill="url(#gsDrop)"/><defs><linearGradient id="gsDrop" x1="0" y1="0" x2="28" y2="28"><stop offset="0%" stopColor="#4DABF7"/><stop offset="40%" stopColor="#1A73E8"/><stop offset="70%" stopColor="#6C63FF"/><stop offset="100%" stopColor="#FF6B6B"/></linearGradient></defs></svg><span style={{fontWeight:model===m.id?600:400}}>{m.name}{m.badge&&<span style={{marginLeft:6,padding:"1px 5px",borderRadius:3,background:"rgba(26,115,232,0.1)",color:T.blue.to,fontSize:9,fontWeight:600}}>{m.badge}</span>}</span><span style={{fontSize:12,color:T.text.muted,fontFamily:T.font.mono}}>${m.cost}</span></button>))}</div>)}
+              </div>
+              <span style={{fontSize:13,color:T.text.ghost}}>모델을 선택하고 생성하기 버튼을 누르세요! (무료 사용자도 최신 모델 가능! 일일 최대 20장 제한)</span>
+            </div>
+            <div style={S.barRight}><span style={S.costTxt}>{active.length}장 × ${curM.cost} = <strong>${(active.length*curM.cost).toFixed(3)}</strong></span>{gErr&&<span style={{fontSize:13,color:T.error,fontWeight:500}}>{gErr}</span>}<button onClick={doGen} disabled={gen} style={{...S.genBtn,...(gen?{opacity:0.55,cursor:"not-allowed"}:{})}}>{gen?<><span style={S.spin}/>생성 중...</>:<>생성하기 · {active.length}</>}</button></div>
           </div>
-        </div>
+        )}
       </div></div>
     </div>
   );
 }
 
-/* ═══ OB STYLES ═══ */
-const OB={
-  ov:{position:"fixed",inset:0,zIndex:1000,background:T.bg.overlay,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"overlayIn 0.2s"},
-  card:{position:"relative",maxWidth:500,width:"100%",background:T.bg.page,borderRadius:T.radius.xl,padding:"32px 30px 24px",boxShadow:"0 16px 60px rgba(0,0,0,0.12)",animation:"cardIn 0.3s ease-out",maxHeight:"88vh",overflowY:"auto"},
-  x:{position:"absolute",top:14,right:14,width:28,height:28,borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:T.text.muted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
-  dots:{display:"flex",gap:4,marginBottom:20},dot:{width:28,height:2.5,borderRadius:2,background:T.border.default,transition:"all 0.3s"},
-  dotA:{background:T.blue.to,width:40},dotD:{background:T.text.ghost},
-  stepL:{fontSize:11,fontWeight:600,letterSpacing:"0.08em",color:T.text.muted,fontFamily:T.font.mono,marginBottom:4},
-  title:{fontSize:20,fontWeight:600,color:T.text.primary,marginBottom:16},
-  txt:{fontSize:15,color:T.text.secondary,lineHeight:1.7,marginBottom:14},
-  chips:{display:"flex",flexWrap:"wrap",gap:8},
-  chip:{padding:"6px 14px",borderRadius:20,background:T.bg.mid,fontSize:13,color:T.text.secondary,border:`1px solid ${T.border.default}`},
-  info:{padding:"12px 14px",borderRadius:T.radius.md,background:T.bg.mid,border:`1px solid ${T.border.default}`,marginBottom:10},
-  infoT:{fontSize:14,fontWeight:600,color:T.text.primary,marginBottom:3},infoD:{fontSize:14,color:T.text.secondary,lineHeight:1.6},
-  stList:{display:"flex",flexDirection:"column",gap:14,marginBottom:16},stRow:{display:"flex",gap:12,alignItems:"flex-start"},
-  stN:{width:26,height:26,borderRadius:6,flexShrink:0,background:T.bg.mid,border:`1px solid ${T.border.default}`,color:T.text.primary,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:T.font.mono},
-  stT:{fontSize:14,fontWeight:500,color:T.text.primary,marginBottom:2},sub:{fontSize:13,color:T.text.muted},
-  link:{fontSize:13,color:T.blue.to,textDecoration:"none",fontFamily:T.font.mono},
-  keyIn:{width:"100%",padding:"12px 14px",borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:14,fontFamily:T.font.mono,marginBottom:8},
-  startBtn:{width:"100%",padding:"12px",borderRadius:T.radius.md,border:"none",background:T.black,color:T.text.inverse,fontSize:15,fontWeight:500,cursor:"pointer"},
-  howG:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10},
-  howC:{padding:14,borderRadius:T.radius.md,background:T.bg.mid,border:`1px solid ${T.border.default}`,textAlign:"center"},
-  howN:{fontSize:17,color:T.text.muted,fontFamily:T.font.mono,display:"block",marginBottom:6},
-  howT:{fontSize:14,fontWeight:600,color:T.text.primary,marginBottom:2},howD:{fontSize:12,color:T.text.muted,lineHeight:1.4},
-  nav:{display:"flex",gap:10,alignItems:"center",marginTop:20,paddingTop:16,borderTop:`1px solid ${T.border.subtle}`},
-  back:{padding:"9px 18px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:T.text.secondary,fontSize:14,cursor:"pointer"},
-  next:{padding:"9px 22px",borderRadius:T.radius.sm,border:"none",background:T.black,color:T.text.inverse,fontSize:14,fontWeight:500,cursor:"pointer"},
-};
+const OB={ov:{position:"fixed",inset:0,zIndex:1000,background:T.bg.overlay,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"overlayIn 0.2s"},card:{position:"relative",maxWidth:500,width:"100%",background:T.bg.page,borderRadius:T.radius.xl,padding:"32px 30px 24px",boxShadow:"0 16px 60px rgba(0,0,0,0.12)",animation:"cardIn 0.3s ease-out",maxHeight:"88vh",overflowY:"auto"},x:{position:"absolute",top:14,right:14,width:28,height:28,borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:T.text.muted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},dots:{display:"flex",gap:4,marginBottom:20},dot:{width:28,height:2.5,borderRadius:2,background:T.border.default,transition:"all 0.3s"},dotA:{background:T.blue.to,width:40},dotD:{background:T.text.ghost},stepL:{fontSize:11,fontWeight:600,letterSpacing:"0.08em",color:T.text.muted,fontFamily:T.font.mono,marginBottom:4},title:{fontSize:20,fontWeight:600,color:T.text.primary,marginBottom:16},txt:{fontSize:15,color:T.text.secondary,lineHeight:1.7,marginBottom:14},chips:{display:"flex",flexWrap:"wrap",gap:8},chip:{padding:"6px 14px",borderRadius:20,background:T.bg.mid,fontSize:13,color:T.text.secondary,border:`1px solid ${T.border.default}`},info:{padding:"12px 14px",borderRadius:T.radius.md,background:T.bg.mid,border:`1px solid ${T.border.default}`,marginBottom:10},infoT:{fontSize:14,fontWeight:600,color:T.text.primary,marginBottom:3},infoD:{fontSize:14,color:T.text.secondary,lineHeight:1.6},stList:{display:"flex",flexDirection:"column",gap:14,marginBottom:16},stRow:{display:"flex",gap:12,alignItems:"flex-start"},stN:{width:26,height:26,borderRadius:6,flexShrink:0,background:T.bg.mid,border:`1px solid ${T.border.default}`,color:T.text.primary,fontSize:13,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:T.font.mono},stT:{fontSize:14,fontWeight:500,color:T.text.primary,marginBottom:2},sub:{fontSize:13,color:T.text.muted},link:{fontSize:13,color:T.blue.to,textDecoration:"none",fontFamily:T.font.mono},keyIn:{width:"100%",padding:"12px 14px",borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:14,fontFamily:T.font.mono,marginBottom:8},startBtn:{width:"100%",padding:"12px",borderRadius:T.radius.md,border:"none",background:T.black,color:T.text.inverse,fontSize:15,fontWeight:500,cursor:"pointer"},howG:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10},howC:{padding:14,borderRadius:T.radius.md,background:T.bg.mid,border:`1px solid ${T.border.default}`,textAlign:"center"},howN:{fontSize:17,color:T.text.muted,fontFamily:T.font.mono,display:"block",marginBottom:6},howT:{fontSize:14,fontWeight:600,color:T.text.primary,marginBottom:2},howD:{fontSize:12,color:T.text.muted,lineHeight:1.4},nav:{display:"flex",gap:10,alignItems:"center",marginTop:20,paddingTop:16,borderTop:`1px solid ${T.border.subtle}`},back:{padding:"9px 18px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:T.text.secondary,fontSize:14,cursor:"pointer"},next:{padding:"9px 22px",borderRadius:T.radius.sm,border:"none",background:T.black,color:T.text.inverse,fontSize:14,fontWeight:500,cursor:"pointer"}};
 
-/* ═══ MAIN STYLES ═══ */
-const S={
-  root:{fontFamily:T.font.sans,background:T.bg.page,color:T.text.primary,minHeight:"100vh",display:"flex",flexDirection:"column",paddingBottom:68},
-  wrap:{maxWidth:1100,margin:"0 auto",padding:"0 28px",width:"100%"},
-  header:{borderBottom:`1px solid ${T.border.subtle}`,background:T.bg.page,position:"sticky",top:0,zIndex:50},
-  headerIn:{padding:"18px 0",display:"flex",alignItems:"center"},
-  logoCenter:{textAlign:"center"},logoRow:{display:"flex",alignItems:"center",justifyContent:"center",gap:10},
-  logoTitle:{fontSize:40,fontWeight:800,color:T.text.primary,letterSpacing:"-0.02em",lineHeight:1.2,fontFamily:"'Noto Sans','Noto Sans KR',sans-serif"},
-  logoSub:{fontSize:18,fontWeight:300,color:T.text.muted,marginTop:3,letterSpacing:"0.03em",fontFamily:"'Noto Sans','Noto Sans KR',sans-serif"},
-  helpBtn:{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:"#BBBBC0",fontSize:13,fontWeight:500,cursor:"pointer"},
-  helpQ:{width:20,height:20,borderRadius:4,background:T.bg.mid,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:"#BBBBC0",fontFamily:T.font.mono},
-  midZone:{background:T.bg.mid,flex:1},
-  main:{padding:"28px 0 20px",display:"flex",flexDirection:"column",gap:28},
-  secTitle:{display:"block",fontSize:17,fontWeight:600,color:T.text.primary,marginBottom:12,fontFamily:T.font.title},
-  countBadge:{fontSize:12,color:T.text.secondary,fontFamily:T.font.mono,padding:"3px 10px",borderRadius:20,background:T.bg.page,border:`1px solid ${T.border.default}`},
-  hint:{fontSize:13,color:T.text.secondary,marginTop:6,lineHeight:1.5},
-  hintRed:{fontSize:13,color:"#EA4335",marginTop:6,lineHeight:1.5,paddingLeft:14},
-  keyValid:{fontSize:13,color:"#34A853",marginTop:8,paddingLeft:14,fontWeight:500},
-  keyInvalid:{fontSize:13,color:"#EA4335",marginTop:8,paddingLeft:14,fontWeight:500},
-  eyeBtn:{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"transparent",border:"none",padding:0,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},
-  apiRow:{display:"flex",gap:8,flexWrap:"wrap"},
-  apiInput:{flex:1,minWidth:200,padding:"10px 14px",borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,color:"#AAAAAE",fontSize:14,fontFamily:T.font.mono},
-  outBtn:{padding:"10px 16px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.secondary,fontSize:13,fontWeight:500,cursor:"pointer",display:"inline-flex",alignItems:"center",textDecoration:"none"},
-  verifyBtn:{padding:"10px 20px",borderRadius:T.radius.sm,border:"none",background:T.black,color:T.text.inverse,fontSize:13,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center"},
-  keyLink:{fontSize:13,color:T.text.muted,textDecoration:"none",display:"inline-flex",alignItems:"center",whiteSpace:"nowrap"},
-  blackBtn:{padding:"10px 16px",borderRadius:T.radius.sm,border:"none",background:T.black,color:T.text.inverse,fontSize:13,fontWeight:500,cursor:"pointer",display:"inline-flex",alignItems:"center",textDecoration:"none"},
-  blueBtn:{padding:"9px 20px",borderRadius:T.radius.sm,border:"none",background:T.blue.gradient,color:T.text.inverse,fontSize:13,fontWeight:500,cursor:"pointer"},
-  comboGrid:{display:"grid",gridTemplateColumns:"1fr 2fr",gap:24,alignItems:"start"},
-  drop:{borderRadius:T.radius.md,border:`1.5px dashed ${T.border.dashed}`,background:T.bg.page,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",aspectRatio:"3/4",overflow:"hidden",transition:"all 200ms"},
-  dropFill:{border:`1px solid ${T.border.default}`,background:T.bg.page},
-  prev:{width:"100%",height:"100%",objectFit:"contain"},
-  dropInner:{textAlign:"center",padding:24},
-  dropBox:{width:48,height:48,borderRadius:T.radius.md,background:T.bg.panel,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12},
-  dropPlus:{fontSize:20,color:T.text.muted,fontWeight:300},
-  dropT:{fontSize:15,fontWeight:500,color:T.text.secondary,marginBottom:2},
-  dropH:{fontSize:13,color:T.text.muted},
-  uploadBarTrack:{width:"70%",height:4,borderRadius:2,background:T.border.default,overflow:"hidden"},
-  uploadBarFill:{width:"100%",height:"100%",borderRadius:2,background:T.blue.gradient,animation:"uploadSlide 0.6s ease-out forwards"},
-  fileIcon:{width:48,height:48,borderRadius:T.radius.md,background:T.bg.panel,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:10},
-  poseGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10,alignItems:"stretch"},
-  miniBtn:{fontSize:11,padding:"2px 8px",borderRadius:4,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.muted,cursor:"pointer"},
-  ta:{width:"100%",padding:"9px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:13,resize:"vertical",lineHeight:1.5,marginTop:4,fontFamily:T.font.sans},
-  addPoseBtn:{width:"100%",padding:12,borderRadius:T.radius.md,border:`1.5px dashed ${T.border.dashed}`,background:"transparent",color:T.text.muted,fontSize:13,fontWeight:500,cursor:"pointer"},
-  addForm:{padding:14,borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,display:"flex",flexDirection:"column",gap:8,marginTop:4},
-  addIn:{padding:"9px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:14,width:"100%"},
-  resLabel:{fontSize:15,fontWeight:600,color:T.text.primary,marginBottom:8},
-  resImg:{width:"100%",borderRadius:T.radius.lg,border:`1px solid ${T.border.default}`,animation:"fadeUp 0.4s ease-out"},
-  errCard:{aspectRatio:"3/4",borderRadius:T.radius.lg,background:"rgba(220,53,69,0.04)",border:"1px solid rgba(220,53,69,0.12)",display:"flex",alignItems:"center",justifyContent:"center",padding:20},
-  errBanner:{padding:"12px 16px",borderRadius:T.radius.md,background:"rgba(220,53,69,0.06)",border:"1px solid rgba(220,53,69,0.15)",color:T.error,fontSize:14,fontWeight:500,textAlign:"center"},
-  bar:{position:"fixed",bottom:0,left:0,right:0,zIndex:80,background:T.bg.page,borderTop:"none"},
-  barIn:{padding:"10px 0",display:"flex",alignItems:"center",gap:16},
-  barRight:{display:"flex",alignItems:"center",gap:14,marginLeft:"auto"},
-  tabs:{display:"flex",gap:4},
-  tab:{padding:"7px 16px",borderRadius:20,border:`1px solid ${T.border.default}`,background:"transparent",color:T.text.secondary,fontSize:13,fontWeight:500,cursor:"pointer"},
-  tabOn:{background:T.blue.gradient,color:T.text.inverse,borderColor:"transparent",boxShadow:"0 2px 8px rgba(26,115,232,0.25)"},
-  tabBadge:{display:"inline-block",marginLeft:5,padding:"1px 5px",borderRadius:3,background:"rgba(26,115,232,0.12)",color:T.blue.to,fontSize:9,fontWeight:600,verticalAlign:"middle"},
-  tabBadgeOn:{background:"rgba(255,255,255,0.2)",color:T.text.inverse},
-  modelTrigger:{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderRadius:0,border:"none",background:"transparent",color:T.text.primary,fontSize:14,cursor:"pointer",fontFamily:T.font.sans,textAlign:"left"},
-  modelDrop:{position:"absolute",bottom:"calc(100% + 8px)",left:0,minWidth:260,background:T.bg.page,borderRadius:T.radius.lg,border:`1px solid ${T.border.default}`,boxShadow:"0 8px 30px rgba(0,0,0,0.12)",padding:"6px",zIndex:100},
-  modelDropHeader:{display:"flex",gap:8,padding:"8px 12px 6px",borderBottom:`1px solid ${T.border.subtle}`,marginBottom:4},
-  modelDropItem:{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",borderRadius:T.radius.md,border:"none",background:"transparent",color:T.text.primary,fontSize:14,cursor:"pointer",fontFamily:T.font.sans,textAlign:"left",justifyContent:"flex-start"},
-  modelDropItemActive:{background:T.bg.mid},
-  costTxt:{fontSize:13,color:T.text.secondary,fontFamily:T.font.mono},
-  genBtn:{padding:"11px 28px",borderRadius:T.radius.md,border:"none",background:T.blue.gradient,color:T.text.inverse,fontSize:16,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:8},
-  spin:{display:"inline-block",width:14,height:14,border:"2px solid rgba(255,255,255,0.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"},
-
-  /* Loading Overlay */
-  loadingOverlay:{position:"fixed",inset:0,zIndex:900,background:"rgba(243,243,245,0.85)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",animation:"overlayIn 0.2s"},
-  loadingCard:{textAlign:"center",padding:40},
-  loadingSpinner:{width:40,height:40,border:`3px solid ${T.border.default}`,borderTopColor:T.blue.to,borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 20px"},
-  loadingTitle:{fontSize:17,fontWeight:600,color:T.text.primary,marginBottom:6,fontFamily:T.font.title},
-  loadingSub:{fontSize:14,color:T.text.muted,marginBottom:12},
-  loadingCount:{fontSize:14,fontWeight:600,color:T.blue.to,fontFamily:T.font.mono},
-};
+const S={root:{fontFamily:T.font.sans,background:T.bg.page,color:T.text.primary,minHeight:"100vh",display:"flex",flexDirection:"column"},wrap:{maxWidth:1100,margin:"0 auto",padding:"0 28px",width:"100%"},header:{borderBottom:`1px solid ${T.border.subtle}`,background:T.bg.page,position:"sticky",top:0,zIndex:50},headerIn:{padding:"18px 0",display:"flex",alignItems:"flex-end"},verLabel:{fontSize:12,fontWeight:400,color:T.border.dashed,fontFamily:T.font.mono,letterSpacing:"0.02em",whiteSpace:"nowrap"},logoCenter:{textAlign:"center"},logoRow:{display:"flex",alignItems:"center",justifyContent:"center",gap:10},logoTitle:{fontSize:40,fontWeight:800,color:T.text.primary,letterSpacing:"-0.02em",lineHeight:1.2,fontFamily:"'Noto Sans','Noto Sans KR',sans-serif"},logoSub:{fontSize:18,fontWeight:300,color:T.text.muted,marginTop:3,letterSpacing:"0.03em",fontFamily:"'Noto Sans','Noto Sans KR',sans-serif"},helpBtn:{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:"transparent",color:"#BBBBC0",fontSize:13,fontWeight:500,cursor:"pointer"},helpQ:{width:20,height:20,borderRadius:4,background:T.bg.mid,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:"#BBBBC0",fontFamily:T.font.mono},midZone:{background:T.bg.mid,flex:1},videoZone:{background:"#E1E1E5",borderTop:`2px dashed ${T.border.dashed}`,paddingTop:36,paddingBottom:100},main:{padding:"28px 0 44px",display:"flex",flexDirection:"column",gap:28},secTitle:{display:"block",fontSize:17,fontWeight:600,color:T.text.primary,marginBottom:12,fontFamily:T.font.title},countBadge:{fontSize:12,color:T.text.secondary,fontFamily:T.font.mono,padding:"3px 10px",borderRadius:20,background:T.bg.page,border:`1px solid ${T.border.default}`},keyValid:{fontSize:13,color:"#34A853",marginTop:8,paddingLeft:14,fontWeight:500},keyInvalid:{fontSize:13,color:"#EA4335",marginTop:8,paddingLeft:14,fontWeight:500},eyeBtn:{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"transparent",border:"none",padding:0,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},apiRow:{display:"flex",gap:8,flexWrap:"wrap"},apiInput:{flex:1,minWidth:200,padding:"10px 14px",borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,color:"#AAAAAE",fontSize:14,fontFamily:T.font.mono},outBtn:{padding:"10px 16px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.secondary,fontSize:13,fontWeight:500,cursor:"pointer",display:"inline-flex",alignItems:"center",textDecoration:"none"},verifyBtn:{padding:"10px 20px",borderRadius:T.radius.md,border:"1px solid transparent",background:T.black,color:T.text.inverse,fontSize:13,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center"},keyLink:{fontSize:13,color:T.text.muted,textDecoration:"none",display:"inline-flex",alignItems:"center",whiteSpace:"nowrap"},blueBtn:{padding:"9px 20px",borderRadius:T.radius.sm,border:"none",background:T.blue.gradient,color:T.text.inverse,fontSize:13,fontWeight:500,cursor:"pointer"},comboGrid:{display:"grid",gridTemplateColumns:"1fr 2fr",gap:24,alignItems:"stretch"},drop:{borderRadius:T.radius.md,border:`1.5px dashed ${T.border.dashed}`,background:T.bg.page,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flex:1,minHeight:200,overflow:"hidden",transition:"all 200ms"},dropFill:{border:`1px solid ${T.border.default}`,background:T.bg.page},prev:{width:"100%",height:"100%",objectFit:"contain"},dropInner:{textAlign:"center",padding:24},dropBox:{width:48,height:48,borderRadius:T.radius.md,background:T.bg.panel,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12},dropPlus:{fontSize:20,color:T.text.muted,fontWeight:300},dropT:{fontSize:15,fontWeight:500,color:T.text.secondary,marginBottom:2},dropH:{fontSize:13,color:T.text.muted},uploadBarTrack:{width:"70%",height:4,borderRadius:2,background:T.border.default,overflow:"hidden"},uploadBarFill:{width:"100%",height:"100%",borderRadius:2,background:T.blue.gradient,animation:"uploadSlide 0.6s ease-out forwards"},fileIcon:{width:48,height:48,borderRadius:T.radius.md,background:T.bg.panel,display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:10},poseGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10,alignItems:"stretch"},miniBtn:{fontSize:11,padding:"2px 8px",borderRadius:4,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.muted,cursor:"pointer"},ta:{width:"100%",padding:"9px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:13,resize:"vertical",lineHeight:1.5,marginTop:4,fontFamily:T.font.sans},addPoseBtn:{width:"100%",padding:12,borderRadius:T.radius.md,border:`1.5px dashed ${T.border.dashed}`,background:"transparent",color:T.text.muted,fontSize:13,fontWeight:500,cursor:"pointer"},addForm:{padding:14,borderRadius:T.radius.md,border:`1px solid ${T.border.default}`,background:T.bg.page,display:"flex",flexDirection:"column",gap:8,marginTop:4},addIn:{padding:"9px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:14,width:"100%"},resLabel:{fontSize:15,fontWeight:600,color:T.text.primary,marginBottom:8},resImg:{width:"100%",borderRadius:T.radius.lg,border:`1px solid ${T.border.default}`,animation:"fadeUp 0.4s ease-out"},cardBtn:{padding:"6px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.secondary,fontSize:12,fontWeight:500,cursor:"pointer",textDecoration:"none",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,lineHeight:1.4},cardBtnActive:{background:T.blue.to,color:T.text.inverse,border:`1px solid ${T.blue.to}`},videoPanel:{padding:16,borderRadius:T.radius.lg,border:`1px solid ${T.border.default}`,background:T.bg.page,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"},vpLabel:{fontSize:12,fontWeight:500,color:T.text.muted,display:"block",marginBottom:4},selectInput:{padding:"8px 12px",borderRadius:T.radius.sm,border:`1px solid ${T.border.default}`,background:T.bg.page,color:T.text.primary,fontSize:13,fontFamily:T.font.sans},errCard:{aspectRatio:"3/4",borderRadius:T.radius.lg,background:"rgba(220,53,69,0.04)",border:"1px solid rgba(220,53,69,0.12)",display:"flex",alignItems:"center",justifyContent:"center",padding:20},errBanner:{padding:"12px 16px",borderRadius:T.radius.md,background:"rgba(220,53,69,0.06)",border:"1px solid rgba(220,53,69,0.15)",color:T.error,fontSize:14,fontWeight:500,textAlign:"center"},bar:{position:"fixed",bottom:0,left:0,right:0,zIndex:80,background:T.bg.page,borderTop:`1px solid ${T.border.subtle}`},barIn:{padding:"14px 0",display:"flex",alignItems:"center",gap:16},barRight:{display:"flex",alignItems:"center",gap:14,marginLeft:"auto"},modelTrigger:{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderRadius:0,border:"none",background:"transparent",color:T.text.primary,fontSize:14,cursor:"pointer",fontFamily:T.font.sans,textAlign:"left"},modelDrop:{position:"absolute",bottom:"calc(100% + 8px)",left:0,minWidth:260,background:T.bg.page,borderRadius:T.radius.lg,border:`1px solid ${T.border.default}`,boxShadow:"0 8px 30px rgba(0,0,0,0.12)",padding:"6px",zIndex:100},modelDropHeader:{display:"flex",gap:8,padding:"8px 12px 6px",borderBottom:`1px solid ${T.border.subtle}`,marginBottom:4},modelDropItem:{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"10px 12px",borderRadius:T.radius.md,border:"none",background:"transparent",color:T.text.primary,fontSize:14,cursor:"pointer",fontFamily:T.font.sans,textAlign:"left",justifyContent:"flex-start"},modelDropItemActive:{background:T.bg.mid},costTxt:{fontSize:13,color:T.text.secondary,fontFamily:T.font.mono},genBtn:{padding:"11px 28px",borderRadius:T.radius.md,border:"none",background:T.blue.gradient,color:T.text.inverse,fontSize:16,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:8},spin:{display:"inline-block",width:14,height:14,border:"2px solid rgba(255,255,255,0.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"},loadingOverlay:{position:"fixed",inset:0,zIndex:900,background:"rgba(243,243,245,0.85)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",animation:"overlayIn 0.2s"},loadingCard:{textAlign:"center",padding:40},loadingSpinner:{width:40,height:40,border:`3px solid ${T.border.default}`,borderTopColor:T.blue.to,borderRadius:"50%",animation:"spin 0.9s linear infinite",margin:"0 auto 20px"},loadingTitle:{fontSize:17,fontWeight:600,color:T.text.primary,marginBottom:6,fontFamily:T.font.title},loadingSub:{fontSize:14,color:T.text.muted,marginBottom:12},loadingCount:{fontSize:14,fontWeight:600,color:T.blue.to,fontFamily:T.font.mono}};
