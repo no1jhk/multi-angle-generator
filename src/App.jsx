@@ -42,19 +42,40 @@ async function genImg(key, model, prompt, b64, mime, retries=2) {
   }
 }
 function getProxyBase(){const isDev=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1";return isDev?"/gemini-proxy":"/api/gemini-proxy";}
-async function genVideo(key,model,prompt,startFrameB64,startFrameMime,endFrameB64,endFrameMime,aspectRatio){
-  const BASE=getProxyBase();const reqBody={instances:[{prompt,image:{bytesBase64Encoded:startFrameB64,mimeType:startFrameMime||"image/png"}}],parameters:{aspectRatio:aspectRatio||"9:16"}};
-  if(endFrameB64)reqBody.instances[0].lastFrame={bytesBase64Encoded:endFrameB64,mimeType:endFrameMime||"image/png"};
-  const r=await fetch(`${BASE}/models/${model}:predictLongRunning`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(reqBody)});
-  if(!r.ok){const e=await r.json().catch(()=>({}));if(r.status===429)throw new Error("RATE_LIMIT_EXCEEDED");throw new Error(e?.error?.message||`Error ${r.status}`);}
-  const op=await r.json();const opName=op.name;
-  for(let i=0;i<60;i++){await new Promise(res=>setTimeout(res,10000));const poll=await fetch(`${BASE}/${opName}`,{headers:{"x-goog-api-key":key}});const status=await poll.json();
-    if(status.done){const resp=status.response||{};const videoUri=resp?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri||resp?.videos?.[0]?.gcsUri||resp?.videos?.[0]?.uri||resp?.generatedSamples?.[0]?.video?.uri||resp?.video?.uri;
-      if(!videoUri){if(resp?.generateVideoResponse?.raiMediaFilteredCount)throw new Error("안전 필터에 의해 영상이 차단되었습니다. 다른 이미지나 프롬프트로 다시 시도해주세요.");throw new Error("영상 URI를 받지 못했습니다.");}
-      const vidUrl=videoUri.replace("https://generativelanguage.googleapis.com/v1beta",BASE);const vidRes=await fetch(vidUrl,{headers:{"x-goog-api-key":key}});const blob=await vidRes.blob();return URL.createObjectURL(blob);}
-    if(status.error)throw new Error(status.error.message||"영상 생성 실패");}
-  throw new Error("영상 생성 시간이 초과되었습니다 (10분).");
-}
+async function genVideo(key, model, prompt, startFrameB64, startFrameMime, endFrameB64, endFrameMime, aspectRatio) {
+    const BASE = getProxyBase();
+    const reqBody = {
+      instances: [{ prompt, image: { bytesBase64Encoded: startFrameB64, mimeType: startFrameMime || "image/png" } }],
+      parameters: { aspectRatio: aspectRatio || "9:16" },
+    };
+    if (endFrameB64) reqBody.instances[0].lastFrame = { bytesBase64Encoded: endFrameB64, mimeType: endFrameMime || "image/png" };
+    const r = await fetch(`${BASE}/models/${model}:predictLongRunning`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify(reqBody),
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); if (r.status === 429) throw new Error("RATE_LIMIT_EXCEEDED"); throw new Error(e?.error?.message || `Error ${r.status}`); }
+    const op = await r.json(); const opName = op.name;
+    for (let i = 0; i < 60; i++) {
+      await new Promise((res) => setTimeout(res, 10000));
+      const poll = await fetch(`${BASE}/${opName}`, { headers: { "x-goog-api-key": key } });
+      const status = await poll.json();
+      if (status.done) {
+        const resp = status.response || {};
+        const videoUri = resp?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri || resp?.videos?.[0]?.gcsUri || resp?.videos?.[0]?.uri || resp?.generatedSamples?.[0]?.video?.uri || resp?.video?.uri;
+        if (!videoUri) {
+          if (resp?.generateVideoResponse?.raiMediaFilteredCount) throw new Error("안전 필터에 의해 영상이 차단되었습니다.");
+          throw new Error("영상 URI를 받지 못했습니다.");
+        }
+        const vidUrl = videoUri.replace("https://generativelanguage.googleapis.com/v1beta", BASE);
+        const vidRes = await fetch(vidUrl, { headers: { "x-goog-api-key": key } });
+        const blob = await vidRes.blob();
+        return URL.createObjectURL(blob);
+      }
+      if (status.error) throw new Error(status.error.message || "영상 생성 실패");
+    }
+    throw new Error("영상 생성 시간이 초과되었습니다 (10분).");
+  }
 function toB64(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res({b64:r.result.split(",")[1],mime:f.type});r.onerror=rej;r.readAsDataURL(f);});}
 const Skeleton=()=><div style={{width:"100%",aspectRatio:"3/4",borderRadius:T.radius.lg,background:`linear-gradient(110deg,${T.bg.panel} 30%,${T.bg.elevated} 50%,${T.bg.panel} 70%)`,backgroundSize:"200% 100%",animation:"shimmer 1.8s ease-in-out infinite"}}/>;
 
